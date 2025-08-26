@@ -73,40 +73,30 @@ __mlu_func__ __mlu_host__ void print_args_bit(const T &first,
   }
 }
 
-// 按值打印宏
-#define TASK_PRINT(id, ...)     \
-  if (taskId == id) {           \
-    printf(#__VA_ARGS__ ":\n"); \
-    print_args(__VA_ARGS__);    \
-    printf("\n");               \
-  }
+// 根据环境选择打印头
+#ifdef __BANG__  // 设备端
+#define PRINT_HEADER(tag, ...)                                              \
+  printf("file: %s, line: %d, taskId: %d %s\n", __FILE__, __LINE__, taskId, \
+         tag);                                                              \
+  printf(#__VA_ARGS__ ":\n");
+#else  // 主机端
+#define PRINT_HEADER(tag, ...)            \
+  printf("line: %d %s\n", __LINE__, tag); \
+  printf(#__VA_ARGS__ ":\n");
+#endif
 
-#define DEVICE_PRINT(...)                             \
-  printf("taskId: %d, line: %d\n", taskId, __LINE__); \
-  printf(#__VA_ARGS__ ":\n");                         \
-  print_args(__VA_ARGS__);                            \
-  printf("\n");
+// 按值打印
+#define PRINT_ARGS(...)            \
+  do {                             \
+    PRINT_HEADER("", __VA_ARGS__); \
+    print_args(__VA_ARGS__);       \
+    printf("\n");                  \
+  } while (0)
 
-#define HOST_PRINT(...)       \
-  printf(#__VA_ARGS__ ":\n"); \
-  print_args(__VA_ARGS__);    \
-  printf("\n");
-
-// 按位打印宏
-#define TASK_PRINT_BIT(id, ...)       \
-  if (taskId == id) {                 \
-    printf(#__VA_ARGS__ " (bit):\n"); \
-    print_args_bit(__VA_ARGS__);      \
-    printf("\n");                     \
-  }
-
-#define DEVICE_PRINT_BIT(...)                         \
-  printf("taskId: %d, line: %d\n", taskId, __LINE__); \
-  printf(#__VA_ARGS__ " (bit):\n");                   \
-  print_args_bit(__VA_ARGS__);                        \
-  printf("\n");
-
-#define HOST_PRINT_BIT(...)         \
-  printf(#__VA_ARGS__ " (bit):\n"); \
-  print_args_bit(__VA_ARGS__);      \
-  printf("\n");
+// 按位打印
+#define PRINT_ARGS_BIT(...)             \
+  do {                                  \
+    PRINT_HEADER("(bit)", __VA_ARGS__); \
+    print_args_bit(__VA_ARGS__);        \
+    printf("\n");                       \
+  } while (0)
