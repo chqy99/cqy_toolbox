@@ -80,17 +80,17 @@ __mlu_func__ __mlu_host__ void print_args_bit(const T &first,
          tag);                                                              \
   printf(#__VA_ARGS__ ":\n");
 #else  // 主机端
-#define PRINT_HEADER(tag, ...)            \
-  printf("line: %d %s\n", __LINE__, tag); \
+#define PRINT_HEADER(tag, ...)                                \
+  printf("file: %s, line: %d %s\n", __FILE__, __LINE__, tag); \
   printf(#__VA_ARGS__ ":\n");
 #endif
 
 // 按值打印
-#define PRINT_ARGS(...)            \
-  do {                             \
-    PRINT_HEADER("", __VA_ARGS__); \
-    print_args(__VA_ARGS__);       \
-    printf("\n");                  \
+#define PRINT_ARGS(...)                   \
+  do {                                    \
+    PRINT_HEADER("(value)", __VA_ARGS__); \
+    print_args(__VA_ARGS__);              \
+    printf("\n");                         \
   } while (0)
 
 // 按位打印
