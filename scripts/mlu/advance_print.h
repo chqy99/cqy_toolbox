@@ -4,7 +4,7 @@
 #include <type_traits>
 #include <cstdint>
 
-template<typename>
+template <typename>
 inline constexpr bool always_false = false;
 
 template <typename T>
@@ -24,12 +24,13 @@ __mlu_func__ __mlu_host__ void print_arg(const T &arg) {
   } else if constexpr (std::is_same_v<half, T>) {
 #if defined(__BANG__)  // device 编译
     printf("%hf", arg);
-#else                  // host 编译
+#else  // host 编译
     printf("%f", static_cast<float>(arg));
 #endif
   } else if constexpr (std::is_same_v<bfloat16_t, T>) {
     printf("%f", static_cast<float>(arg));
-  } else if constexpr (std::is_same_v<int8_t, T> || std::is_same_v<uint8_t, T> ) {
+  } else if constexpr (std::is_same_v<int8_t, T> ||
+                       std::is_same_v<uint8_t, T>) {
     printf("%d", static_cast<int>(arg));
   } else if constexpr (std::is_pointer_v<T>) {
     printf("%p", arg);
@@ -41,70 +42,71 @@ __mlu_func__ __mlu_host__ void print_arg(const T &arg) {
 }
 
 template <typename T, typename... Args>
-__mlu_func__ __mlu_host__ void print_args(const T& first, const Args&... rest) {
-    print_arg(first);
-    if constexpr (sizeof...(rest) > 0) {
-        printf(",\t");
-        print_args(rest...);
-    }
+__mlu_func__ __mlu_host__ void print_args(const T &first, const Args &...rest) {
+  print_arg(first);
+  if constexpr (sizeof...(rest) > 0) {
+    printf(",\t");
+    print_args(rest...);
+  }
 }
 
 // 小端序，按位打印单个参数
 template <typename T>
 __mlu_func__ __mlu_host__ void print_arg_bit(const T &arg) {
-    const uint8_t *bytes = reinterpret_cast<const uint8_t*>(&arg);
-    for (size_t i = 0; i < sizeof(T); ++i) {
-        for (int j = 7; j >= 0; --j) {
-            printf("%d", (bytes[i] >> j) & 1);
-        }
-        if (i < sizeof(T) - 1) printf(" ");
+  const uint8_t *bytes = reinterpret_cast<const uint8_t *>(&arg);
+  for (size_t i = 0; i < sizeof(T); ++i) {
+    for (int j = 7; j >= 0; --j) {
+      printf("%d", (bytes[i] >> j) & 1);
     }
+    if (i < sizeof(T) - 1) printf(" ");
+  }
 }
 
-// 设备端多参数按位打印
+// 多参数按位打印
 template <typename T, typename... Args>
-__mlu_func__ __mlu_host__ void print_args_bit(const T& first, const Args&... rest) {
-    print_arg_bit(first);
-    if constexpr (sizeof...(rest) > 0) {
-        printf(",\t");
-        print_args_bit(rest...);
-    }
+__mlu_func__ __mlu_host__ void print_args_bit(const T &first,
+                                              const Args &...rest) {
+  print_arg_bit(first);
+  if constexpr (sizeof...(rest) > 0) {
+    printf(",\t");
+    print_args_bit(rest...);
+  }
 }
 
 // 按值打印宏
-#define TASK_PRINT(id, ...) \
-    if (taskId == id) { \
-        printf(#__VA_ARGS__ ":\n"); \
-        print_args(__VA_ARGS__); \
-        printf("\n"); \
-    }
-
-#define DEVICE_PRINT(...) \
-    printf("taskId: %d, line: %d\n", taskId, __LINE__); \
+#define TASK_PRINT(id, ...)     \
+  if (taskId == id) {           \
     printf(#__VA_ARGS__ ":\n"); \
-    print_args(__VA_ARGS__); \
-    printf("\n");
+    print_args(__VA_ARGS__);    \
+    printf("\n");               \
+  }
 
-#define HOST_PRINT(...) \
-    printf(#__VA_ARGS__ ":\n"); \
-    print_args(__VA_ARGS__); \
-    printf("\n");
+#define DEVICE_PRINT(...)                             \
+  printf("taskId: %d, line: %d\n", taskId, __LINE__); \
+  printf(#__VA_ARGS__ ":\n");                         \
+  print_args(__VA_ARGS__);                            \
+  printf("\n");
+
+#define HOST_PRINT(...)       \
+  printf(#__VA_ARGS__ ":\n"); \
+  print_args(__VA_ARGS__);    \
+  printf("\n");
 
 // 按位打印宏
-#define TASK_PRINT_BIT(id, ...) \
-    if (taskId == id) { \
-        printf(#__VA_ARGS__ " (bit):\n"); \
-        print_args_bit(__VA_ARGS__); \
-        printf("\n"); \
-    }
-
-#define DEVICE_PRINT_BIT(...) \
-    printf("taskId: %d, line: %d\n", taskId, __LINE__); \
+#define TASK_PRINT_BIT(id, ...)       \
+  if (taskId == id) {                 \
     printf(#__VA_ARGS__ " (bit):\n"); \
-    print_args_bit(__VA_ARGS__); \
-    printf("\n");
+    print_args_bit(__VA_ARGS__);      \
+    printf("\n");                     \
+  }
 
-#define HOST_PRINT_BIT(...) \
-    printf(#__VA_ARGS__ " (bit):\n"); \
-    print_args_bit(__VA_ARGS__); \
-    printf("\n");
+#define DEVICE_PRINT_BIT(...)                         \
+  printf("taskId: %d, line: %d\n", taskId, __LINE__); \
+  printf(#__VA_ARGS__ " (bit):\n");                   \
+  print_args_bit(__VA_ARGS__);                        \
+  printf("\n");
+
+#define HOST_PRINT_BIT(...)         \
+  printf(#__VA_ARGS__ " (bit):\n"); \
+  print_args_bit(__VA_ARGS__);      \
+  printf("\n");
