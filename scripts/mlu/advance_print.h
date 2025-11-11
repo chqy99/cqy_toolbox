@@ -82,11 +82,11 @@ FUNCTION_ATTRIBUTE void print_args(const T &first, const Args &...rest) {
 template <typename T>
 FUNCTION_ATTRIBUTE void print_arg_bit(const T &arg) {
   const uint8_t *bytes = reinterpret_cast<const uint8_t *>(&arg);
-  for (size_t i = 0; i < sizeof(T); ++i) {
+  for (int i = sizeof(T) - 1; i >= 0; --i) {
     for (int j = 7; j >= 0; --j) {
       printf("%d", (bytes[i] >> j) & 1);
     }
-    if (i < sizeof(T) - 1) printf(" ");
+    if (i > 0) printf(" ");
   }
 }
 
