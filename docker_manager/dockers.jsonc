@@ -1,0 +1,207 @@
+// Docker 镜像管理与调度配置
+// 上次使用的 docker 别名
+
+{
+  "last_docker": "torch_2.8",
+
+  // 默认挂载目录（自动检测：目录存在则挂载为 dir:dir，不需要在每个 image 的 mounts 中重复）
+  "default_mounts": ["/MLU_OPS", "/data", "/tools"],
+
+  // 默认工具挂载（自动检测：文件存在则挂载为 file:file:ro）
+  "default_tool_mounts": ["/usr/bin/cnmon"],
+
+  // 镜像注册表
+  // device: mlu (默认) / gpu / cpu
+  //   mlu  → --privileged
+  //   gpu  → --privileged --gpus all --ulimit
+  //   cpu  → 无设备透传
+  // last_use: 上次使用时间 (ISO 格式，首次添加时为 epoch 0)
+  // use_count: 使用次数
+  // mounts: 可选，自定义挂载列表（如 ["/host/path:/container/path"]），不写则无额外挂载
+
+  "images": {
+    "generator": {
+      "image": "yellow.hub.cambricon.com/cnnl/devel/x86_64/cntest:v0.26-ubuntu22.04-cuda12.4-cudnn9-tf-2.18.0-pytorch-2.6.0-mmcv-2.2.0-onnx-1.16.1",
+      "container": "chqy_generator",
+      "desc": "MLU-OPS generator 测试 (CUDA12.4 / PT2.6 / MMCV2.2)",
+      "device": "gpu",
+      "shm_size": "128g",
+      "home_mount": true,
+      "auto_remove": true,
+      "last_use": "1970-01-01T00:00:00",
+      "use_count": 0
+    },
+
+    "mluops_openEuler": {
+      "image": "cambricon-openeuler-riscv64:24.03",
+      "container": "chqy_mluops_openeuler",
+      "desc": "MLU-OPS OpenEuler RISC-V 开发",
+      "device": "mlu",
+      "shm_size": "64g",
+      "home_mount": true,
+      "auto_remove": true,
+      "last_use": "1970-01-01T00:00:00",
+      "use_count": 0
+    },
+
+    "mmcv": {
+      "image": "yellow.hub.cambricon.com/mlu-ops/others/x86_64/mluops_test:latest-ubuntu20.04-cuda11.2-cudnn8-tf-2.5.3-pytorch-1.9.0-mmcv-1.6.1-onnx-1.7.0-tutel-0.1",
+      "container": "chqy_mmcv",
+      "desc": "MMCV 测试 (CUDA11.2 / PT1.9 / MMCV1.6)",
+      "device": "gpu",
+      "shm_size": "64g",
+      "home_mount": true,
+      "auto_remove": true,
+      "last_use": "1970-01-01T00:00:00",
+      "use_count": 0
+    },
+
+    "paddle": {
+      "image": "yellow.hub.cambricon.com/cnnl/nvidia/paddle:latest-develop-py3",
+      "container": "chqy_paddle",
+      "desc": "PaddlePaddle 开发",
+      "device": "gpu",
+      "shm_size": "64g",
+      "home_mount": false,
+      "auto_remove": false,
+      "last_use": "1970-01-01T00:00:00",
+      "use_count": 0
+    },
+
+    "torch_2.6": {
+      "image": "yellow.hub.cambricon.com/cnnl/devel/x86_64/cntest:v0.26-ubuntu22.04-cuda12.4-cudnn9-tf-2.18.0-pytorch-2.6.0-mmcv-2.2.0-onnx-1.16.1",
+      "container": "chqy_torch_2_6",
+      "desc": "PyTorch 2.6 (CUDA12.4 / CUDNN9)",
+      "device": "gpu",
+      "shm_size": "64g",
+      "home_mount": false,
+      "auto_remove": false,
+      "last_use": "1970-01-01T00:00:00",
+      "use_count": 0
+    },
+
+    "torch_2.8": {
+      "image": "chqy_pt2.8:latest",
+      "container": "chqy_torch_2_8",
+      "desc": "PyTorch 2.8 自定义构建",
+      "device": "gpu",
+      "shm_size": "128g",
+      "home_mount": true,
+      "auto_remove": true,
+      "last_use": "1970-01-01T00:00:00",
+      "use_count": 0
+    },
+
+    "torch_mlu_main": {
+      "image": "yellow.hub.cambricon.com/pytorch/daily/x86_64/pytorch:v1.30.0-torch2.10.0-x86_64-ubuntu22.04-20251126-202517-8c4774a0-main_3.10",
+      "container": "chqy_torch_mlu_main",
+      "desc": "Torch MLU main 分支 (PT2.10)",
+      "device": "mlu",
+      "shm_size": "128g",
+      "home_mount": true,
+      "auto_remove": true,
+      "user_mode": "direct",
+      "last_use": "1970-01-01T00:00:00",
+      "use_count": 0
+    },
+
+    "torch_mlu_2.9": {
+      "image": "yellow.hub.cambricon.com/pytorch/daily/x86_64/pytorch:v1.30.0-torch2.9.1-x86_64-ubuntu22.04-gcc-20260122-201339-28cdc382-r2.9_develop_3.10",
+      "container": "chqy_torch_mlu_2_9",
+      "desc": "Torch MLU r2.9 (PT2.9.1)",
+      "device": "mlu",
+      "shm_size": "128g",
+      "home_mount": true,
+      "auto_remove": true,
+      "last_use": "1970-01-01T00:00:00",
+      "use_count": 0
+    },
+
+    "vllm_0.6.1": {
+      "image": "community_vllm_0.6.1",
+      "container": "chqy_vllm_0_6_1",
+      "desc": "vLLM 0.6.1",
+      "device": "gpu",
+      "shm_size": "64g",
+      "home_mount": false,
+      "auto_remove": false,
+      "last_use": "1970-01-01T00:00:00",
+      "use_count": 0
+    },
+
+    "vllm_0.5.3": {
+      "image": "vllm_0.5.3_patch",
+      "container": "chqy_vllm_0_5_3",
+      "desc": "vLLM 0.5.3 patched",
+      "device": "gpu",
+      "shm_size": "64g",
+      "home_mount": false,
+      "auto_remove": false,
+      "last_use": "1970-01-01T00:00:00",
+      "use_count": 0
+    },
+
+    "openwebui": {
+      "image": "ghcr.io/open-webui/open-webui",
+      "container": "chqy_openwebui",
+      "desc": "Open WebUI",
+      "device": "gpu",
+      "shm_size": "64g",
+      "home_mount": false,
+      "auto_remove": false,
+      "last_use": "1970-01-01T00:00:00",
+      "use_count": 0
+    },
+
+    "tmo": {
+      "image": "yellow.hub.cambricon.com/bangtransformer/daily/x86_64/bangtransformer:v1.6.0-TMO-2138-x86_64-ubuntu22.04-py3_10-20250620_095150-c57f5da",
+      "container": "chqy_tmo",
+      "desc": "BangTransformer TMO",
+      "device": "mlu",
+      "shm_size": "64g",
+      "home_mount": false,
+      "auto_remove": false,
+      "extra_env": { "HOME": "/tmp" },
+      "last_use": "1970-01-01T00:00:00",
+      "use_count": 0
+    },
+
+    "mluops_test": {
+      "image": "yellow.hub.cambricon.com/mlu-ops/devel/x86_64/mluops:latest-devel-x86_64-ubuntu20.04",
+      "container": "chqy_mluops_test",
+      "desc": "MLU-OPS 测试开发",
+      "device": "mlu",
+      "shm_size": "64g",
+      "home_mount": false,
+      "auto_remove": false,
+      "last_use": "1970-01-01T00:00:00",
+      "use_count": 0
+    },
+
+    "vision": {
+      "image": "python3.10-vision:v0.2",
+      "container": "chqy_vision",
+      "desc": "Python 3.10 Vision (自定义 Dockerfile)",
+      "device": "gpu",
+      "shm_size": "64g",
+      "home_mount": true,
+      "auto_remove": true,
+      "dockerfile": "py3.10_pt2.7/Dockerfile",
+      "last_use": "1970-01-01T00:00:00",
+      "use_count": 0
+    },
+
+    "py312_cu130": {
+      "image": "py3.12_cu130:latest",
+      "container": "chqy_py312_cu130",
+      "desc": "Python 3.12 + CUDA 13.0 (自定义 Dockerfile)",
+      "device": "gpu",
+      "shm_size": "64g",
+      "home_mount": true,
+      "auto_remove": false,
+      "dockerfile": "py3.12_cu130/Dockerfile",
+      "last_use": "1970-01-01T00:00:00",
+      "use_count": 0
+    }
+  }
+}
