@@ -9,6 +9,7 @@
 
 import argparse
 import os
+import socket
 import sys
 from datetime import datetime
 
@@ -24,6 +25,37 @@ DOCKER_RUN_SH = os.path.join(SCRIPT_DIR, "docker_run.sh")
 # ===============================
 # 配置辅助
 # ===============================
+
+def _get_host_ip() -> str:
+    """获取本机出口 IP 地址（不会真正发包）"""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("10.0.0.1", 1))
+            return s.getsockname()[0]
+    except Exception:
+        return socket.gethostname()
+
+
+def _get_last_docker(config: dict) -> str:
+    """获取当前机器上次使用的 docker 别名"""
+    host_id = _get_host_ip()
+    mapping = config.get("last_docker", {})
+    if isinstance(mapping, str):
+        # 兼容旧格式: last_docker 是字符串
+        return mapping
+    return mapping.get(host_id, "")
+
+
+def _set_last_docker(config: dict, alias: str) -> None:
+    """设置当前机器上次使用的 docker 别名"""
+    host_id = _get_host_ip()
+    mapping = config.get("last_docker", {})
+    if isinstance(mapping, str):
+        # 兼容旧格式: 迁移到新格式
+        mapping = {}
+    mapping[host_id] = alias
+    config["last_docker"] = mapping
+
 
 def resolve_default_mounts(config: dict) -> list[str]:
     """根据 default_mounts 和 default_tool_mounts 配置，自动检测主机上存在的目录/文件，
@@ -126,7 +158,7 @@ def resolve_alias(images: dict, alias: str) -> str:
 def cmd_list(config: dict, args) -> None:
     """列出所有已注册的 docker 镜像"""
     images = config.get("images", {})
-    last = config.get("last_docker", "")
+    last = _get_last_docker(config)
 
     print(f"{'*':<2} {'Alias':<18} {'Dev':<5} {'Use':>4} {'Last Use':<20} {'Desc'}")
     print("-" * 100)
@@ -143,7 +175,8 @@ def cmd_list(config: dict, args) -> None:
         desc = info.get("desc", "")
         print(f"{is_last:<2} {alias:<18} {device:<5} {use_count:>4} {last_use_short:<20} {desc}")
 
-    print(f"\nlast_docker: {last}" if last else "\n(未设置 last_docker)")
+    host_id = _get_host_ip()
+    print(f"\nlast_docker: {last} (on {host_id})" if last else f"\n(未设置 last_docker on {host_id})")
 
     auto_mounts = resolve_default_mounts(config)
     if auto_mounts:
@@ -221,7 +254,7 @@ def cmd_run(config: dict, args, config_path: str) -> None:
         cmd.extend(["--env", f"{key}={val}"])
 
     # 更新统计
-    config["last_docker"] = alias
+    _set_last_docker(config, alias)
     info["last_use"] = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
     info["use_count"] = info.get("use_count", 0) + 1
     jsonc.save(config_path, config)
@@ -232,7 +265,7 @@ def cmd_run(config: dict, args, config_path: str) -> None:
 
 def cmd_last(config: dict, args, config_path: str) -> None:
     """快速启动上次使用的 docker"""
-    last = config.get("last_docker", "")
+    last = _get_last_docker(config)
     if not last:
         print("错误: 未设置 last_docker，请先使用 'run <alias>' 启动一个容器", file=sys.stderr)
         sys.exit(1)

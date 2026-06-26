@@ -10,6 +10,8 @@
 #   - 主机环境变量透传：容器内保留 PATH、自定义变量等
 #   - sudo 安全拦截：容器内 sudo 时打印警告
 #   - PS1 标识：prompt 前缀显示 (docker)，一眼区分内外
+#   - 入口脚本通过 docker cp 注入（非 bind mount），避免临时文件被清理后
+#     docker restart 因 mount source 丢失而失败
 #   - 容器名+镜像一致性检查：防止误进旧容器
 #   - 启动前自动 pull：docker pull 更新镜像，--no-pull 跳过
 
@@ -226,6 +228,26 @@ generate_entrypoint() {
 #!/bin/bash
 set -e
 
+# ============ 幂等保护：重复启动（如 docker restart）时跳过初始化 ============
+if [ -f /.entry_initialized ]; then
+    echo "|NOTE| 容器环境已初始化，直接进入"
+    # 重新生成用户入口脚本并切换用户
+    echo '#!/bin/bash' > /tmp/user_entry.sh
+    echo 'set -e' >> /tmp/user_entry.sh
+    echo "cd $CONTAINER_HOME" >> /tmp/user_entry.sh
+    echo 'if [ "\$HOME" = "/root" ]; then export HOME='"$CONTAINER_HOME"'; fi' >> /tmp/user_entry.sh
+    echo 'exec bash' >> /tmp/user_entry.sh
+    chmod +x /tmp/user_entry.sh
+    if command -v gosu >/dev/null 2>&1; then
+        gosu $MY_NAME /tmp/user_entry.sh
+    elif [ -x /usr/local/sbin/gosu ]; then
+        /usr/local/sbin/gosu $MY_NAME /tmp/user_entry.sh
+    else
+        su -p -l $MY_NAME -c /tmp/user_entry.sh
+    fi
+    exit 0
+fi
+
 echo "|NOTE| 已进入容器环境，提醒：在\"非挂载进来的目录\"里产生的数据在容器销毁时都会被清除"
 
 # ============ PS1 定制：prompt 前缀显示 (docker) ============
@@ -319,6 +341,9 @@ echo 'exec bash' >> /tmp/user_entry.sh
 chmod +x /tmp/user_entry.sh
 
 # ============ 切换用户：优先 gosu，回退 su ============
+# 标记初始化完成，docker restart 时跳过初始化
+touch /.entry_initialized
+
 if command -v gosu >/dev/null 2>&1; then
     gosu $MY_NAME /tmp/user_entry.sh
 elif [ -x /usr/local/sbin/gosu ]; then
@@ -333,7 +358,7 @@ EOF
 }
 
 # ===============================
-# 容器不存在 → docker run
+# 容器不存在 → docker create + cp + start
 # ===============================
 echo "容器 '$CONTAINER' 不存在，创建并启动 (image: $IMAGE, device: $DEVICE)..."
 
@@ -341,16 +366,16 @@ echo "容器 '$CONTAINER' 不存在，创建并启动 (image: $IMAGE, device: $D
 HOST_ENV_FILE=$(generate_host_env)
 ENTRY_FILE=$(generate_entrypoint)
 
-# 组装 docker run 参数
-RUN_ARGS=()
+# 组装 docker create 参数
+CREATE_ARGS=()
 
 # --rm 逻辑
 if [[ "$FORCE_RM" == true || "$AUTO_REMOVE" == true ]]; then
-    RUN_ARGS+=(--rm)
+    CREATE_ARGS+=(--rm)
 fi
 
-RUN_ARGS+=(
-    -it
+CREATE_ARGS+=(
+    -t
     --name "$CONTAINER"
     --hostname "$CONTAINER"
     --network=host
@@ -364,12 +389,12 @@ RUN_ARGS+=(
 # 设备透传
 case "$DEVICE" in
     mlu)
-        RUN_ARGS+=(--privileged)
+        CREATE_ARGS+=(--privileged)
         ;;
     gpu)
-        RUN_ARGS+=(--privileged)
-        RUN_ARGS+=(--gpus all)
-        RUN_ARGS+=(--ulimit memlock=-1 --ulimit stack=67108864)
+        CREATE_ARGS+=(--privileged)
+        CREATE_ARGS+=(--gpus all)
+        CREATE_ARGS+=(--ulimit memlock=-1 --ulimit stack=67108864)
         ;;
     cpu)
         # 无设备透传
@@ -378,24 +403,41 @@ esac
 
 # 挂载
 for m in "${MOUNTS[@]}"; do
-    RUN_ARGS+=(-v "$m")
+    CREATE_ARGS+=(-v "$m")
 done
 
 # Home 挂载：挂载到容器 HOME ($CONTAINER_HOME = /tmp/$USER)
 if [[ "$HOME_MOUNT" == true ]]; then
-    RUN_ARGS+=(-v "/tmp/${MY_NAME}_home:$CONTAINER_HOME")
+    CREATE_ARGS+=(-v "/tmp/${MY_NAME}_home:$CONTAINER_HOME")
 fi
 
 # 环境变量
 for e in "${EXTRA_ENV[@]}"; do
-    RUN_ARGS+=(-e "$e")
+    CREATE_ARGS+=(-e "$e")
 done
 
-# 挂载入口脚本和环境变量文件
-RUN_ARGS+=(-v "$ENTRY_FILE:/.entry_wrapper.sh:ro")
-RUN_ARGS+=(-v "$HOST_ENV_FILE:/.host_env:ro")
+# ===============================
+# 用户模式: direct → 以当前用户身份直接进入
+# ===============================
+if [[ "$USER_MODE" == "direct" ]]; then
+    CREATE_ARGS+=(-u "$MY_UID:$MY_GID")
+    docker create "${CREATE_ARGS[@]}" "$IMAGE" /bin/bash >/dev/null
+    exec docker start -ai "$CONTAINER"
+fi
 
-# 挂载 gosu（如果宿主机上有）
+# ===============================
+# 用户模式: root → 以 root 进入，执行 entrypoint 创建用户后切换
+# ===============================
+# 用 docker create 创建容器（不启动），再通过 docker cp 注入入口脚本和环境变量文件，
+# 避免 bind mount 临时文件导致 docker restart 时 mount source 丢失的问题。
+CREATE_ARGS+=(-u root)
+docker create "${CREATE_ARGS[@]}" "$IMAGE" bash -c "/.entry_wrapper.sh" >/dev/null
+
+# 将入口脚本和环境变量文件 cp 进容器（而非 bind mount）
+docker cp "$ENTRY_FILE" "$CONTAINER:/.entry_wrapper.sh"
+docker cp "$HOST_ENV_FILE" "$CONTAINER:/.host_env"
+
+# 将 gosu cp 进容器（如果宿主机上有）
 GOSU_PATH=""
 if command -v gosu >/dev/null 2>&1; then
     GOSU_PATH="$(which gosu)"
@@ -403,19 +445,8 @@ elif [[ -x /tools/container/gosu-$(uname -m) ]]; then
     GOSU_PATH="/tools/container/gosu-$(uname -m)"
 fi
 if [[ -n "$GOSU_PATH" ]]; then
-    RUN_ARGS+=(-v "$GOSU_PATH:/usr/local/sbin/gosu:ro")
+    docker cp "$GOSU_PATH" "$CONTAINER:/usr/local/sbin/gosu"
 fi
 
-# ===============================
-# 用户模式: direct → 以当前用户身份直接进入
-# ===============================
-if [[ "$USER_MODE" == "direct" ]]; then
-    RUN_ARGS+=(-u "$MY_UID:$MY_GID")
-    exec docker run "${RUN_ARGS[@]}" "$IMAGE" /bin/bash
-fi
-
-# ===============================
-# 用户模式: root → 以 root 进入，执行 entrypoint 创建用户后切换
-# ===============================
-RUN_ARGS+=(-u root)
-exec docker run "${RUN_ARGS[@]}" "$IMAGE" bash -c "/.entry_wrapper.sh"
+# 启动容器并 attach
+exec docker start -ai "$CONTAINER"
