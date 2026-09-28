@@ -1,6 +1,7 @@
 {
   "last_docker": {
-    "10.100.195.46": "generator"
+    "10.100.195.46": "generator",
+    "10.100.146.167": "mluops_test"
   },
   "default_mounts": [
     "/MLU_OPS",
@@ -12,15 +13,16 @@
   ],
   "images": {
     "generator": {
-      "image": "yellow.hub.cambricon.com/cnnl/devel/x86_64/cntest:v0.26-ubuntu22.04-cuda12.4-cudnn9-tf-2.18.0-pytorch-2.6.0-mmcv-2.2.0-onnx-1.16.1",
+      "image": "yellow.hub.cambricon.com/cnnl/devel/x86_64/cntest:v0.32-dev-ubuntu22.04-cuda12.4-cudnn9-tf-2.18.0-pytorch-2.6.0-mmcv-2.2.0-onnx-1.16.1",
       "container": "chqy_generator",
       "desc": "MLU-OPS generator 测试 (CUDA12.4 / PT2.6 / MMCV2.2)",
       "device": "gpu",
       "shm_size": "128g",
       "home_mount": true,
       "auto_remove": true,
-      "last_use": "2026-06-26T15:20:59",
-      "use_count": 6
+      "disable_prompt_command": true,
+      "last_use": "2026-08-12T16:45:08",
+      "use_count": 26
     },
     "mluops_test": {
       "image": "yellow.hub.cambricon.com/mlu-ops/devel/x86_64/mluops:latest-devel-x86_64-ubuntu22.04",
@@ -30,8 +32,8 @@
       "shm_size": "64g",
       "home_mount": false,
       "auto_remove": false,
-      "last_use": "2026-06-26T11:10:35",
-      "use_count": 6
+      "last_use": "2026-07-02T11:08:43",
+      "use_count": 9
     },
     "mluops_openEuler": {
       "image": "cambricon-openeuler-riscv64:24.03",

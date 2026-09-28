@@ -1,6 +1,6 @@
 #!/bin/bash
 # docker_run.sh — 纯执行层，接收参数启动/进入 docker 容器
-# 不关心 YAML 配置，由 docker_mgr.py 调用或手动使用
+# 不关心 YAML 配置，由 main.py 调用或手动使用
 #
 # 用户/权限处理吸收自 spica/tools/run_in_docker.sh，解决 docker 内外权限/用户不一致问题：
 #   - 组名清洗：LDAP 组名含特殊字符时自动替换
@@ -34,6 +34,7 @@ USER_MODE="root"   # root: 以 root 进入后创建用户切换; direct: 以 -u 
 EXTRA_ENV=()
 TEMP_FILES=()
 DO_PULL=true       # 默认启动前自动 pull
+DISABLE_PROMPT_COMMAND=false  # 是否在 .bashrc 末尾 unset PROMPT_COMMAND（按镜像开启）
 
 MY_NAME=$(whoami)
 MY_UID=$(id -u)
@@ -85,6 +86,8 @@ Options:
   -u, --user-mode MODE     用户模式: root (默认) 或 direct
   -e, --env KEY=VAL        设置环境变量 (可多次指定)
       --no-pull            跳过启动前的 docker pull
+      --disable-prompt-command  在 .bashrc 末尾 unset PROMPT_COMMAND
+                           清掉 oh-my-bash 等慢的 prompt 钩子（按镜像开启）
   -h, --help               显示帮助
 
 Examples:
@@ -124,6 +127,7 @@ while [[ $# -gt 0 ]]; do
         -u|--user-mode)   USER_MODE="$2"; shift 2 ;;
         -e|--env)         EXTRA_ENV+=("$2"); shift 2 ;;
         --no-pull)        DO_PULL=false; shift ;;
+        --disable-prompt-command) DISABLE_PROMPT_COMMAND=true; shift ;;
         -h|--help)        usage 0 ;;
         *)                echo "未知选项: $1"; usage 1 ;;
     esac
@@ -322,6 +326,21 @@ if [ ! -f $CONTAINER_HOME/.bashrc ]; then
 fi
 chown -R $MY_UID:$MY_GID $CONTAINER_HOME 2>/dev/null || true
 
+# ============ 后处理（可选）：清掉慢的 prompt 钩子 ============
+# 仅当 --disable-prompt-command 启用时，在 .bashrc 末尾追加 unset PROMPT_COMMAND。
+# 某些镜像/home 自带 oh-my-bash 等，其 PROMPT_COMMAND 每次回车都跑网络/IO 调用，
+# 在容器内 DNS 或挂载慢时会卡数十秒。末尾追加可在所有 source 之后覆盖注入的钩子。
+if [[ "$DISABLE_PROMPT_COMMAND" == true ]]; then
+    if ! grep -q 'docker_manager: disable slow prompt hooks' "$CONTAINER_HOME/.bashrc" 2>/dev/null; then
+        cat >> "$CONTAINER_HOME/.bashrc" << 'PROMPTHOOK'
+
+# docker_manager: disable slow prompt hooks (oh-my-bash etc.)
+# 这些钩子每次回车都跑网络/git 调用，容器内会卡。需要时自行注释掉。
+unset PROMPT_COMMAND
+PROMPTHOOK
+    fi
+fi
+
 # ============ /torch 加写权限（如存在） ============
 if [ -d /torch ]; then
     chmod -R g+w /torch 2>/dev/null &
@@ -380,7 +399,6 @@ CREATE_ARGS+=(
     --hostname "$CONTAINER"
     --network=host
     --ipc=host
-    --pid=host
     --shm-size "$SHM_SIZE"
     -e USER="$MY_NAME"
     -e PYTHONIOENCODING=utf-8

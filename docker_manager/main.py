@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""docker_mgr.py — Docker 镜像管理与调度脚本
+"""main.py — Docker 镜像管理与调度脚本
 
 管理 dockers.jsonc 中的镜像注册表，提供列表、启动、状态、清理、提交等功能。
 实际容器启动由 docker_run.sh 执行。
@@ -247,6 +247,9 @@ def cmd_run(config: dict, args, config_path: str) -> None:
         cmd.append("--rm")
     if args.no_pull:
         cmd.append("--no-pull")
+    # 按镜像开启：disable_prompt_command: true 时清掉慢的 PROMPT_COMMAND 钩子（oh-my-bash 等）
+    if info.get("disable_prompt_command", False):
+        cmd.append("--disable-prompt-command")
 
     cmd.extend(["--user-mode", info.get("user_mode", "root")])
 
@@ -435,7 +438,7 @@ def cmd_commit(config: dict, args) -> None:
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="docker_mgr",
+        prog="main",
         description="Docker 镜像管理与调度工具 — 管理 dockers.jsonc，调用 docker_run.sh 启动容器",
     )
     parser.add_argument("--config", default=DEFAULT_CONFIG, help=f"配置路径 (默认: {DEFAULT_CONFIG})")
